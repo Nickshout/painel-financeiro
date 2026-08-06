@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background-color: #0b1220;
+  }
+
+  body {
+    background-color: #0b1220;
+    color: #e8ecf4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numeros de cambio precisam alinhar verticalmente. Nao-negociavel. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer components {
+  /*
+   * Ticker tape: a faixa e o elemento-assinatura da pagina.
+   * O conteudo e duplicado no markup e a trilha desliza -50%,
+   * o que produz um loop continuo sem nenhum JavaScript.
+   */
+  .ticker-track {
+    display: flex;
+    width: max-content;
+    animation: ticker-scroll 45s linear infinite;
+  }
+
+  @keyframes ticker-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track {
+      animation-play-state: paused;
+    }
+  }
+}

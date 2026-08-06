@@ -1,0 +1,36 @@
+name: Coleta periodica de cotacoes
+
+on:
+  schedule:
+    # A cada 6 horas (UTC). Mesma cadencia anunciada na interface.
+    - cron: "0 */6 * * *"
+  # Permite disparar a coleta manualmente pela aba Actions.
+  workflow_dispatch:
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acionar /api/cron
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Secrets APP_URL e CRON_SECRET precisam estar configurados no repositorio."
+            exit 1
+          fi
+
+          codigo=$(curl -sS -o resposta.json -w "%{http_code}" \
+            -X POST "$APP_URL/api/cron" \
+            -H "x-cron-secret: $CRON_SECRET" \
+            --max-time 90)
+
+          echo "HTTP $codigo"
+          cat resposta.json
+          echo
+
+          if [ "$codigo" != "200" ]; then
+            echo "Coleta falhou."
+            exit 1
+          fi
