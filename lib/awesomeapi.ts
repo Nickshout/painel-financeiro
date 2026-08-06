@@ -1,7 +1,9 @@
 /**
  * Client da AwesomeAPI (cotacoes de cambio e cripto).
  * Endpoint: https://economia.awesomeapi.com.br/json/last/{moedas}
- * Autenticacao: nenhuma.
+ * Autenticacao: API key opcional no header `x-api-key`, lida de
+ * AWESOMEAPI_TOKEN. Sem a variavel a chamada segue anonima, sujeita ao
+ * rate limit por IP compartilhado.
  */
 
 /** Lista fixa de ativos coletados a cada ciclo. */
@@ -56,6 +58,31 @@ export class AwesomeApiError extends Error {
 
 const BASE_URL = "https://economia.awesomeapi.com.br/json/last";
 
+/** Evita repetir o aviso de chamada anonima a cada coleta. */
+let avisouSemToken = false;
+
+/**
+ * Monta os headers da requisicao.
+ * A chave vai no header (e nao na query string) para nao aparecer em log de URL.
+ * Sem AWESOMEAPI_TOKEN o client continua funcionando de forma anonima — apenas
+ * sujeito ao rate limit por IP compartilhado, que e o que estoura no CI.
+ */
+function cabecalhos(): HeadersInit | undefined {
+  const token = process.env.AWESOMEAPI_TOKEN;
+
+  if (!token) {
+    if (!avisouSemToken) {
+      console.warn(
+        "[awesomeapi] AWESOMEAPI_TOKEN nao configurada — as chamadas serao anonimas e sujeitas a rate limit por IP."
+      );
+      avisouSemToken = true;
+    }
+    return undefined;
+  }
+
+  return { "x-api-key": token };
+}
+
 /**
  * A AwesomeAPI devolve as chaves sem hifen ("USD-BRL" -> "USDBRL").
  */
@@ -85,10 +112,18 @@ export async function buscarCotacoes(
 
   let resposta: Response;
   try {
-    resposta = await fetch(url, { cache: "no-store" });
+    resposta = await fetch(url, { cache: "no-store", headers: cabecalhos() });
   } catch (erro) {
     throw new AwesomeApiError(
       `Falha de rede ao consultar a AwesomeAPI: ${(erro as Error).message}`
+    );
+  }
+
+  if (resposta.status === 401 || resposta.status === 403) {
+    const corpo = await resposta.text().catch(() => "");
+    throw new AwesomeApiError(
+      `AwesomeAPI recusou a credencial (${resposta.status}). ` +
+        `Confira o valor de AWESOMEAPI_TOKEN: ${corpo.slice(0, 200)}`
     );
   }
 

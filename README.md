@@ -14,7 +14,7 @@ O backend e o frontend vivem no mesmo projeto, por decisão de arquitetura: os R
 
 | API | Endpoint | Autenticação |
 |---|---|---|
-| AwesomeAPI (câmbio e cripto) | `https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,BTC-BRL` | Nenhuma |
+| AwesomeAPI (câmbio e cripto) | `https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,BTC-BRL` | API key no header `x-api-key` (lida de variável de ambiente) |
 | GNews.io (notícias) | `https://gnews.io/api/v4/search` | API key no query param `apikey` (lida de variável de ambiente, nunca exposta ao cliente) |
 | Airtable (persistência) | `https://api.airtable.com/v0/{baseId}/{tabela}` | Personal Access Token no header `Authorization: Bearer` |
 
@@ -89,6 +89,7 @@ Copie `.env.example` para `.env.local` e preencha:
 ```
 AIRTABLE_PAT=        # Personal Access Token (scopes: data.records:read e data.records:write)
 AIRTABLE_BASE_ID=    # ID da base, começa com "app", visível na URL
+AWESOMEAPI_TOKEN=    # API key da AwesomeAPI (awesomeapi.com.br), enviada no header x-api-key
 GNEWS_API_KEY=       # chave obtida em https://gnews.io/dashboard
 CRON_SECRET=         # string aleatória longa, compartilhada com o GitHub Actions
 ```
