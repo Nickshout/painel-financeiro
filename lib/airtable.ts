@@ -222,9 +222,60 @@ export async function vincularNoticiasNaCotacao(
   });
 }
 
+/**
+ * Acrescenta uma cotacao ao vinculo de uma noticia que ja existe, preservando
+ * os vinculos anteriores. Sem isso, reaproveitar o registro apagaria a ligacao
+ * com as coletas passadas.
+ */
+export async function vincularCotacaoNaNoticia(
+  noticiaId: string,
+  cotacaoId: string,
+  vinculosAtuais: string[]
+): Promise<void> {
+  if (vinculosAtuais.includes(cotacaoId)) return;
+
+  await requisitar<AirtableRecord>(`${TABELA_NOTICIAS}/${noticiaId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      fields: { AtivoRelacionado: [...vinculosAtuais, cotacaoId] },
+      typecast: true,
+    }),
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Leitura                                                             */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Busca noticias ja gravadas cujas URLs estejam na lista.
+ * Serve para nao duplicar a mesma materia a cada ciclo: a GNews devolve as mais
+ * recentes, que mudam devagar, entao a mesma URL reaparece com frequencia.
+ */
+export async function buscarNoticiasPorUrls(
+  urls: string[]
+): Promise<NoticiaRegistro[]> {
+  /* Aspas duplas delimitam a string na formula do Airtable e nao ha escape
+     confiavel para elas. Uma URL que as contenha e tratada como inexistente —
+     no pior caso gera uma duplicata, em vez de derrubar a consulta inteira. */
+  const limpas = Array.from(new Set(urls)).filter(
+    (url) => url && !url.includes('"')
+  );
+  if (limpas.length === 0) return [];
+
+  const formula = `OR(${limpas.map((url) => `{URL}="${url}"`).join(",")})`;
+  const params = new URLSearchParams({
+    filterByFormula: formula,
+    maxRecords: String(limpas.length),
+    pageSize: String(limpas.length),
+  });
+
+  const resposta = await requisitar<AirtableListResponse>(
+    `${TABELA_NOTICIAS}?${params}`
+  );
+
+  return resposta.records.map(paraNoticia);
+}
 
 /** Lista cotacoes da mais recente para a mais antiga. */
 export async function listarCotacoes(limite = 30): Promise<CotacaoRegistro[]> {

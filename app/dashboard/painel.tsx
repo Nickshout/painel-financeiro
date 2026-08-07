@@ -267,14 +267,14 @@ export function Painel({
               Notícias vinculadas
             </h2>
             <p className="text-sm text-muted">
-              Puxadas quando a variação de um ativo passa de 1,5%.
+              Puxadas quando a variação de um ativo passa de 0,5%.
             </p>
           </div>
 
           {noticias.length === 0 ? (
             <p className="mt-6 text-sm leading-relaxed text-muted">
               Nenhuma notícia vinculada até agora. Elas aparecem aqui quando
-              algum dos ativos se mexer mais de 1,5% entre duas coletas.
+              algum dos ativos se mexer mais de 0,5% entre duas coletas.
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-white/[0.07]">

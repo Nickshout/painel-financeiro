@@ -18,13 +18,6 @@ export const TERMO_BUSCA: Record<Ativo, string> = {
   "BTC-BRL": "bitcoin",
 };
 
-/** Rotulo curto do ativo para exibicao na interface. */
-export const ROTULO_ATIVO: Record<Ativo, string> = {
-  "USD-BRL": "Dólar",
-  "EUR-BRL": "Euro",
-  "BTC-BRL": "Bitcoin",
-};
-
 /** Formato bruto devolvido pela AwesomeAPI para cada par. */
 interface AwesomeApiPar {
   code: string;

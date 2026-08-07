@@ -2,8 +2,10 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
+  buscarNoticiasPorUrls,
   criarCotacao,
   criarNoticia,
+  vincularCotacaoNaNoticia,
   vincularNoticiasNaCotacao,
 } from "@/lib/airtable";
 import {
@@ -18,8 +20,12 @@ import { buscarNoticias } from "@/lib/gnews";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Acima deste percentual (em modulo) a variacao e considerada relevante. */
-const LIMITE_VARIACAO = 1.5;
+/**
+ * Acima deste percentual (em modulo) a variacao e considerada relevante.
+ * Calibrado para cambio: meio por cento num dia ja e movimento real para um par
+ * de moedas, enquanto 1,5% so acontece em dia de manchete.
+ */
+const LIMITE_VARIACAO = 0.5;
 
 /** Quantas noticias buscar por ativo com variacao relevante. */
 const NOTICIAS_POR_ATIVO = 2;
@@ -43,6 +49,8 @@ interface DetalheAtivo {
   cotacaoId: string;
   variacaoRelevante: boolean;
   noticiasVinculadas: number;
+  /** Quantas das vinculadas foram gravadas agora; o resto ja existia na base. */
+  noticiasNovas: number;
   aviso?: string;
 }
 
@@ -52,6 +60,7 @@ async function executarCiclo() {
 
   const detalhes: DetalheAtivo[] = [];
   let totalNoticias = 0;
+  let totalNovas = 0;
 
   for (const cotacao of cotacoes) {
     /* 3. Novo registro por coleta — o historico nunca e sobrescrito. */
@@ -64,6 +73,7 @@ async function executarCiclo() {
       cotacaoId: registro.id,
       variacaoRelevante: relevante,
       noticiasVinculadas: 0,
+      noticiasNovas: 0,
     };
 
     if (relevante) {
@@ -74,18 +84,48 @@ async function executarCiclo() {
           NOTICIAS_POR_ATIVO
         );
 
-        const criadas: string[] = [];
+        /* A GNews devolve as materias mais recentes, que mudam devagar: a mesma
+           URL reaparece ciclo apos ciclo. Consulta o que ja esta na base para
+           reaproveitar o registro em vez de gravar a mesma noticia de novo. */
+        const jaGravadas = await buscarNoticiasPorUrls(
+          noticias.map((n) => n.url)
+        );
+        const porUrl = new Map(jaGravadas.map((n) => [n.url, n]));
+
+        const vinculadas: string[] = [];
+        let novas = 0;
+
         for (const noticia of noticias) {
+          const existente = porUrl.get(noticia.url);
+
+          if (existente) {
+            await vincularCotacaoNaNoticia(
+              existente.id,
+              registro.id,
+              existente.ativoRelacionado
+            );
+            if (!vinculadas.includes(existente.id)) {
+              vinculadas.push(existente.id);
+            }
+            continue;
+          }
+
           const registroNoticia = await criarNoticia(noticia, registro.id);
-          criadas.push(registroNoticia.id);
+          vinculadas.push(registroNoticia.id);
+          novas += 1;
+
+          /* Protege contra a mesma URL repetida dentro da propria resposta. */
+          porUrl.set(noticia.url, registroNoticia);
         }
 
-        await vincularNoticiasNaCotacao(registro.id, criadas);
+        await vincularNoticiasNaCotacao(registro.id, vinculadas);
 
-        detalhe.noticiasVinculadas = criadas.length;
-        totalNoticias += criadas.length;
+        detalhe.noticiasVinculadas = vinculadas.length;
+        detalhe.noticiasNovas = novas;
+        totalNoticias += vinculadas.length;
+        totalNovas += novas;
 
-        if (criadas.length === 0) {
+        if (vinculadas.length === 0) {
           detalhe.aviso = "Nenhuma noticia encontrada para o termo buscado.";
         }
       } catch (erro) {
@@ -109,6 +149,7 @@ async function executarCiclo() {
     ativosComVariacaoRelevante: detalhes.filter((d) => d.variacaoRelevante)
       .length,
     noticiasVinculadas: totalNoticias,
+    noticiasNovas: totalNovas,
     detalhes,
   };
 }
